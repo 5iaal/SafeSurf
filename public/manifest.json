@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "SafeSurf",
+  "version": "1.0.0",
+  "description": "Phishing URL & email risk scanner (UI demo).",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "SafeSurf"
+  },
+  "permissions": [],
+  "host_permissions": []
+}
