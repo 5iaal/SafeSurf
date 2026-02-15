@@ -2,11 +2,21 @@
   "manifest_version": 3,
   "name": "SafeSurf",
   "version": "1.0.0",
-  "description": "Phishing URL & email risk scanner (UI demo).",
+  "description": "Real-time phishing & spam detection",
   "action": {
     "default_popup": "index.html",
     "default_title": "SafeSurf"
   },
-  "permissions": [],
-  "host_permissions": []
+  "permissions": ["tabs", "activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>", "https://mail.google.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>", "https://mail.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
