@@ -1,71 +1,108 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, AlertTriangle, CheckCircle, X, Wifi, Mail, Search, ExternalLink, Loader, Flag, ThumbsUp, ThumbsDown, Check, Settings, Inbox, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import {
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  X,
+  Wifi,
+  Mail,
+  Search,
+  Loader,
+  Flag,
+  ThumbsUp,
+  ThumbsDown,
+  Check,
+  Settings,
+  Trash2,
+} from "lucide-react";
 
 const App = () => {
-  const [detectionMode, setDetectionMode] = useState('url'); // 'url' or 'email'
-  const [currentUrl, setCurrentUrl] = useState('login.paypal-secure.verify.com');
-  const [emailSender, setEmailSender] = useState('support@paypal-security.verify.com');
-  const [emailSubject, setEmailSubject] = useState('Urgent: Verify Your Account');
-  const [emailBodyPreview, setEmailBodyPreview] = useState('Click here to verify your account immediately or it will be suspended...');
-  const [riskScore, setRiskScore] = useState(0.87);
-  const [detectionStatus, setDetectionStatus] = useState('high_risk');
+  const [detectionMode, setDetectionMode] = useState("url"); // 'url' or 'email'
+  const [currentUrl, setCurrentUrl] = useState("login.paypal-secure.verify.com");
+  const [emailSender, setEmailSender] = useState("support@paypal-security.verify.com");
+  const [emailSubject, setEmailSubject] = useState("Urgent: Verify Your Account");
+  const [emailBodyPreview, setEmailBodyPreview] = useState(
+    "Click here to verify your account immediately or it will be suspended..."
+  );
+
+  const [riskScore, setRiskScore] = useState(0);
+  const [detectionStatus, setDetectionStatus] = useState("safe");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  
+
   // Sandbox states
-  const [sandboxInput, setSandboxInput] = useState('');
+  const [sandboxInput, setSandboxInput] = useState("");
   const [sandboxResult, setSandboxResult] = useState(null);
   const [isSandboxAnalyzing, setIsSandboxAnalyzing] = useState(false);
-  
+
   // Report states
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [reportType, setReportType] = useState(null);
 
-  useEffect(() => {
-    setIsAnalyzing(true);
-    const timer = setTimeout(() => {
+  // تحليل النصوص الواقعي بالbackend
+  const analyzeInput = async (text, type) => {
+    try {
+      setIsAnalyzing(true);
+      const payload =
+        type === "url"
+          ? { type: "url", value: text }
+          : {
+              type: "email",
+              value: { sender: emailSender, subject: emailSubject, body: emailBodyPreview },
+            };
+
+      const response = await axios.post("http://127.0.0.1:8000/analyze", payload);
+      setRiskScore(response.data.riskScore);
+      setDetectionStatus(response.data.status);
+    } catch (err) {
+      console.error("Error analyzing input:", err);
+      setRiskScore(0);
+      setDetectionStatus("safe");
+    } finally {
       setIsAnalyzing(false);
-      setDetectionStatus(riskScore > 0.7 ? 'high_risk' : riskScore > 0.3 ? 'low_risk' : 'safe');
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [riskScore, detectionMode]);
+    }
+  };
+
+  useEffect(() => {
+    // تحليل تلقائي عند تغيير URL أو email
+    if (detectionMode === "url") analyzeInput(currentUrl, "url");
+    else analyzeInput(null, "email");
+  }, [currentUrl, emailSender, emailSubject, emailBodyPreview, detectionMode]);
 
   const getStatusInfo = () => {
     switch (detectionStatus) {
-      case 'high_risk': return { color: 'bg-red-500', text: 'Phishing Detected', icon: AlertTriangle, textColor: 'text-red-600' };
-      case 'low_risk': return { color: 'bg-yellow-500', text: 'Suspicious', icon: Shield, textColor: 'text-yellow-600' };
-      case 'safe': return { color: 'bg-green-500', text: 'Safe', icon: CheckCircle, textColor: 'text-green-600' };
-      default: return { color: 'bg-blue-500', text: 'Analyzing', icon: Shield, textColor: 'text-blue-600' };
+      case "high_risk":
+        return { color: "bg-red-500", text: "Phishing Detected", icon: AlertTriangle };
+      case "low_risk":
+        return { color: "bg-yellow-500", text: "Suspicious", icon: Shield };
+      case "safe":
+        return { color: "bg-green-500", text: "Safe", icon: CheckCircle };
+      default:
+        return { color: "bg-blue-500", text: "Analyzing", icon: Shield };
     }
   };
 
   const analyzeSandboxInput = async () => {
     if (!sandboxInput.trim()) return;
-    
     setIsSandboxAnalyzing(true);
     setSandboxResult(null);
-    
-    // Simulate analysis
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    
-    // Mock result based on input content
-    const mockStatus = sandboxInput.toLowerCase().includes('phish') || 
-                      sandboxInput.toLowerCase().includes('fake') ||
-                      sandboxInput.toLowerCase().includes('urgent') ||
-                      sandboxInput.toLowerCase().includes('verify') ||
-                      sandboxInput.toLowerCase().includes('click') ||
-                      sandboxInput.toLowerCase().includes('suspended')
-      ? 'high_risk' 
-      : sandboxInput.toLowerCase().includes('test') 
-      ? 'low_risk' 
-      : 'safe';
-    
-    setSandboxResult({
-      input: sandboxInput,
-      status: mockStatus,
-      riskScore: Math.random()
-    });
-    
-    setIsSandboxAnalyzing(false);
+
+    try {
+      const payload =
+        detectionMode === "url"
+          ? { type: "url", value: sandboxInput }
+          : {
+              type: "email",
+              value: { sender: emailSender, subject: emailSubject, body: sandboxInput },
+            };
+
+      const response = await axios.post("http://127.0.0.1:8000/analyze", payload);
+      setSandboxResult({ input: sandboxInput, status: response.data.status, riskScore: response.data.riskScore });
+    } catch (err) {
+      console.error("Sandbox analysis failed:", err);
+    } finally {
+      setIsSandboxAnalyzing(false);
+    }
   };
 
   const handleReport = (type) => {
@@ -94,22 +131,18 @@ const App = () => {
       <div className="p-3 bg-gray-50 border-b">
         <div className="flex bg-white rounded-lg p-1">
           <button
-            onClick={() => setDetectionMode('url')}
+            onClick={() => setDetectionMode("url")}
             className={`flex-1 flex items-center justify-center space-x-1 py-1.5 px-2 text-xs font-medium rounded transition-colors ${
-              detectionMode === 'url' 
-                ? 'bg-blue-600 text-white' 
-                : 'text-gray-600 hover:text-gray-800'
+              detectionMode === "url" ? "bg-blue-600 text-white" : "text-gray-600 hover:text-gray-800"
             }`}
           >
             <Wifi className="w-3 h-3" />
             <span>URL</span>
           </button>
           <button
-            onClick={() => setDetectionMode('email')}
+            onClick={() => setDetectionMode("email")}
             className={`flex-1 flex items-center justify-center space-x-1 py-1.5 px-2 text-xs font-medium rounded transition-colors ${
-              detectionMode === 'email' 
-                ? 'bg-blue-600 text-white' 
-                : 'text-gray-600 hover:text-gray-800'
+              detectionMode === "email" ? "bg-blue-600 text-white" : "text-gray-600 hover:text-gray-800"
             }`}
           >
             <Mail className="w-3 h-3" />
@@ -120,7 +153,7 @@ const App = () => {
 
       {/* Current Analysis */}
       <div className="p-4 border-b">
-        {detectionMode === 'url' ? (
+        {detectionMode === "url" ? (
           <>
             <div className="flex items-center space-x-2 mb-2">
               <Wifi className="w-4 h-4 text-gray-500" />
@@ -148,56 +181,20 @@ const App = () => {
       </div>
 
       {/* Risk Status */}
-      <div className="p-4">
+      <div className="p-4 text-center">
         {isAnalyzing ? (
-          <div className="text-center py-4">
+          <div className="py-4">
             <Loader className="w-5 h-5 text-blue-600 animate-spin mx-auto mb-2" />
             <p className="text-sm text-gray-600">Analyzing...</p>
           </div>
         ) : (
-          <div className="text-center">
+          <>
             <div className={`inline-flex items-center justify-center w-12 h-12 ${getStatusInfo().color} rounded-full mb-3`}>
               <StatusIcon className="w-6 h-6 text-white" />
             </div>
             <p className="font-semibold text-gray-900 mb-1">{getStatusInfo().text}</p>
             <p className="text-sm text-gray-600">Risk: {(riskScore * 100).toFixed(0)}%</p>
-          </div>
-        )}
-
-        {!isAnalyzing && detectionMode === 'url' && (
-          <div className="mt-4 space-y-2">
-            {detectionStatus === 'high_risk' && (
-              <button className="w-full bg-red-600 hover:bg-red-700 text-white text-sm py-2 px-3 rounded flex items-center justify-center space-x-2 transition-colors">
-                <X className="w-4 h-4" />
-                <span>Block This Site</span>
-              </button>
-            )}
-            <button className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm py-2 px-3 rounded transition-colors">
-              {detectionStatus === 'high_risk' ? 'Proceed Anyway' : 'Continue Browsing'}
-            </button>
-          </div>
-        )}
-
-        {!isAnalyzing && detectionMode === 'email' && (
-          <div className="mt-4 space-y-2">
-            <button 
-              className={`w-full text-white text-sm py-2 px-3 rounded flex items-center justify-center space-x-2 transition-colors ${
-                detectionStatus === 'high_risk' 
-                  ? 'bg-red-600 hover:bg-red-700' 
-                  : 'bg-yellow-600 hover:bg-yellow-700'
-              }`}
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>
-                {detectionStatus === 'high_risk' 
-                  ? 'Mark as Spam & Delete' 
-                  : 'Mark as Suspicious'}
-              </span>
-            </button>
-            <button className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm py-2 px-3 rounded transition-colors">
-              Keep in Inbox
-            </button>
-          </div>
+          </>
         )}
       </div>
 
@@ -205,66 +202,71 @@ const App = () => {
       <div className="p-4 border-t bg-gray-50">
         <div className="flex items-center space-x-2 mb-3">
           <Search className="w-4 h-4 text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">
-            {detectionMode === 'url' ? 'Test URL' : 'Test Email'}
-          </span>
+          <span className="text-sm font-medium">{detectionMode === "url" ? "Test URL" : "Test Email"}</span>
         </div>
-        
+
         <div className="flex space-x-2 mb-3">
           <input
             type="text"
             value={sandboxInput}
             onChange={(e) => setSandboxInput(e.target.value)}
-            placeholder={detectionMode === 'url' ? 'Enter URL to test' : 'Enter email content to test'}
+            placeholder={detectionMode === "url" ? "Enter URL to test" : "Enter email content to test"}
             className="flex-1 text-xs p-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            onKeyPress={(e) => e.key === 'Enter' && analyzeSandboxInput()}
+            onKeyDown={(e) => e.key === "Enter" && analyzeSandboxInput()}
           />
           <button
             onClick={analyzeSandboxInput}
             disabled={isSandboxAnalyzing || !sandboxInput.trim()}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white p-2 rounded transition-colors"
           >
-            {isSandboxAnalyzing ? (
-              <Loader className="w-3 h-3 animate-spin" />
-            ) : (
-              <Search className="w-3 h-3" />
-            )}
+            {isSandboxAnalyzing ? <Loader className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
           </button>
         </div>
 
         {sandboxResult && (
-          <div className={`p-3 rounded border ${
-            sandboxResult.status === 'high_risk' ? 'bg-red-50 border-red-200' :
-            sandboxResult.status === 'low_risk' ? 'bg-yellow-50 border-yellow-200' :
-            'bg-green-50 border-green-200'
-          }`}>
+          <div
+            className={`p-3 rounded border ${
+              sandboxResult.status === "high_risk"
+                ? "bg-red-50 border-red-200"
+                : sandboxResult.status === "low_risk"
+                ? "bg-yellow-50 border-yellow-200"
+                : "bg-green-50 border-green-200"
+            }`}
+          >
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-xs font-medium ${
-                sandboxResult.status === 'high_risk' ? 'text-red-700' :
-                sandboxResult.status === 'low_risk' ? 'text-yellow-700' :
-                'text-green-700'
-              }`}>
-                {sandboxResult.status === 'high_risk' ? 'Phishing Detected' :
-                 sandboxResult.status === 'low_risk' ? 'Suspicious' : 'Safe'}
+              <span
+                className={`text-xs font-medium ${
+                  sandboxResult.status === "high_risk"
+                    ? "text-red-700"
+                    : sandboxResult.status === "low_risk"
+                    ? "text-yellow-700"
+                    : "text-green-700"
+                }`}
+              >
+                {sandboxResult.status === "high_risk"
+                  ? "Phishing Detected"
+                  : sandboxResult.status === "low_risk"
+                  ? "Suspicious"
+                  : "Safe"}
               </span>
-              <span className={`text-xs font-bold ${
-                sandboxResult.status === 'high_risk' ? 'text-red-600' :
-                sandboxResult.status === 'low_risk' ? 'text-yellow-600' :
-                'text-green-600'
-              }`}>
+              <span
+                className={`text-xs font-bold ${
+                  sandboxResult.status === "high_risk"
+                    ? "text-red-600"
+                    : sandboxResult.status === "low_risk"
+                    ? "text-yellow-600"
+                    : "text-green-600"
+                }`}
+              >
                 {(sandboxResult.riskScore * 100).toFixed(0)}%
               </span>
             </div>
             <p className="text-xs text-gray-600 mb-2 truncate">{sandboxResult.input}</p>
             <div className="flex space-x-1">
-              {sandboxResult.status === 'high_risk' ? (
-                <button className="w-full bg-red-600 text-white text-xs py-1 px-2 rounded">
-                  Mark as Spam
-                </button>
+              {sandboxResult.status === "high_risk" ? (
+                <button className="w-full bg-red-600 text-white text-xs py-1 px-2 rounded">Mark as Spam</button>
               ) : (
-                <button className="w-full bg-green-600 text-white text-xs py-1 px-2 rounded">
-                  Keep Email
-                </button>
+                <button className="w-full bg-green-600 text-white text-xs py-1 px-2 rounded">Keep Email</button>
               )}
             </div>
           </div>
@@ -277,7 +279,7 @@ const App = () => {
           <Flag className="w-4 h-4 text-amber-600" />
           <span className="text-sm font-medium text-gray-700">Report Issue</span>
         </div>
-        
+
         {reportSubmitted ? (
           <div className="bg-green-50 p-2 rounded text-center">
             <Check className="w-4 h-4 text-green-600 mx-auto mb-1" />
@@ -286,25 +288,22 @@ const App = () => {
         ) : (
           <div className="grid grid-cols-3 gap-2">
             <button
-              onClick={() => handleReport('phishing')}
+              onClick={() => handleReport("phishing")}
               className="p-2 bg-red-50 hover:bg-red-100 rounded border border-red-200 transition-colors"
-              title="Report as Phishing"
             >
               <AlertTriangle className="w-4 h-4 text-red-600 mx-auto" />
               <span className="text-xs text-red-700 mt-1 block">Phishing</span>
             </button>
             <button
-              onClick={() => handleReport('false_positive')}
+              onClick={() => handleReport("false_positive")}
               className="p-2 bg-green-50 hover:bg-green-100 rounded border border-green-200 transition-colors"
-              title="False Positive"
             >
               <ThumbsUp className="w-4 h-4 text-green-600 mx-auto" />
               <span className="text-xs text-green-700 mt-1 block">Safe</span>
             </button>
             <button
-              onClick={() => handleReport('false_negative')}
+              onClick={() => handleReport("false_negative")}
               className="p-2 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 transition-colors"
-              title="False Negative"
             >
               <ThumbsDown className="w-4 h-4 text-blue-600 mx-auto" />
               <span className="text-xs text-blue-700 mt-1 block">Missed</span>
